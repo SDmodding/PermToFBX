@@ -5,6 +5,16 @@ The tool automatically parses all loaded files and exports only the models.
 
 If you want textures to be exported as well, you must load the texture specific files alongside the "model" files.
 
+## Basic CLI Usage
+
+`PermToFBX.exe -rig=BasicFemale "CharacterRigs.bin" "Sandra.perm.bin" "Sandra_TS00.perm.bin"`
+
+`PermToFBX.exe "Data\World\Game\**"`
+
+## Wildcard Usage
+
+A single `*` wildcard loads files only from the given directory. A double `**` wildcard performs a recursive search and loads files from all subdirectories as well.
+
 ## Command-line Options
 
 <table>
