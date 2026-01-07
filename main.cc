@@ -336,6 +336,9 @@ void ExportModel(const char* output_path, fbxsdk::FbxManager* mgr, Illusion::Mod
 	}
 
 	qString filename = { "%s\\%s.fbx", output_path, mdl->mDebugName };
+	if (auto device = gQuarkFileSystem.MapFilenameToDevice(output_path)) {
+		device->CreateDirectoryA(output_path);
+	}
 	fbxModel.Export(mgr, filename);
 }
 
