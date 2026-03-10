@@ -89,7 +89,8 @@ namespace core
 
 	void* GetVertexStreamData(Illusion::VertexStreamDescriptor* stream_descriptor, Illusion::VertexStreamElement* stream_element, Illusion::Buffer* vertex_buffer, u32 index)
 	{
-		return vertex_buffer->mData.Get(stream_element->mOffset + (stream_descriptor->GetStreamSize(stream_element->mStream) * index));
+		const u32 offset = stream_element->mOffset + (stream_descriptor->GetStreamSize(stream_element->mStream) * index);
+		return vertex_buffer->mData.Get(offset);
 	}
 
 	void InitMeshHandles(Illusion::Mesh* mesh)
