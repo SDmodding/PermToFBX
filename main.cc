@@ -156,25 +156,42 @@ void ExportModel(const char* output_path, fbxsdk::FbxManager* mgr, Illusion::Mod
 		auto fbxMesh = fbxModel.CreateMesh(meshName, vertexBuffer->mNumElements);
 		auto fbxNode = fbxMesh->GetNode();
 
-		auto fbxUV = fbxMesh->CreateElementUV("UV0");
-		fbxUV->SetMappingMode(fbxsdk::FbxGeometryElement::eByPolygonVertex);
-		fbxUV->SetReferenceMode(fbxsdk::FbxGeometryElement::eIndexToDirect);
+		fbxsdk::FbxGeometryElementUV* fbxUVs[8] = { 0 };
+		int numUVs = 0;
+
+		for (int i = 0; 8 > i; ++i)
+		{
+			if (!core::GetVertexStreamElement(vertexStreamDesc, static_cast<Illusion::VertexStreamElementUsage>(Illusion::VERTEX_ELEMENT_TEXCOORD0 + i))) {
+				break;
+			}
+
+			qString uv_name = { "UV%d", i };
+			auto* fbxUV = fbxMesh->CreateElementUV(uv_name);
+			fbxUV->SetMappingMode(fbxsdk::FbxGeometryElement::eByPolygonVertex);
+			fbxUV->SetReferenceMode(fbxsdk::FbxGeometryElement::eIndexToDirect);
+
+			fbxUVs[numUVs++] = fbxUV;
+		}
 
 		// Material
 		for (u32 p = 0; material->mNumParams > p; ++p)
 		{
-			auto param = material->GetParam(p);
-			if (param->mNameUID == 0xDCE06689)
-			{
-				qString filename = TextureManager::FindTextureFile(output_path, param->mResourceHandle.mNameUID);
-				auto fbxMat = fbxModel.CreateDiffuseMaterial(material->mDebugName, filename, fbxUV->GetName());
-				fbxNode->AddMaterial(fbxMat);
+			auto* param = material->GetParam(p);
+			qString filename = TextureManager::FindTextureFile(output_path, param->mResourceHandle.mNameUID);
+			fbxsdk::FbxSurfaceMaterial* fbx_mat = 0;
+
+			if (param->mNameUID == 0xDCE06689) { // texDiffuse
+				fbx_mat = fbxModel.CreateDiffuseMaterial(material->mDebugName, filename, fbxUVs[0]->GetName());
 			}
-			else if (param->mNameUID == 0xADBE1A5A)
-			{
-				qString filename = TextureManager::FindTextureFile(output_path, param->mResourceHandle.mNameUID);
-				auto fbxMat = fbxModel.CreateBumpMaterial(material->mDebugName, filename, fbxUV->GetName());
-				fbxNode->AddMaterial(fbxMat);
+			else if (param->mNameUID == 0x19410F73) { // texDiffuse2
+				fbx_mat = fbxModel.CreateDiffuseMaterial(material->mDebugName, filename, fbxUVs[1]->GetName());
+			}
+			else if (param->mNameUID == 0xADBE1A5A) { // texBump
+				fbx_mat = fbxModel.CreateBumpMaterial(material->mDebugName, filename, fbxUVs[0]->GetName());
+			}
+
+			if (fbx_mat) {
+				fbxNode->AddMaterial(fbx_mat);
 			}
 		}
 
@@ -224,29 +241,36 @@ void ExportModel(const char* output_path, fbxsdk::FbxManager* mgr, Illusion::Mod
 
 		// Texture Coord
 
-		if (auto stream_element = core::GetVertexStreamElement(vertexStreamDesc, Illusion::VERTEX_ELEMENT_TEXCOORD0))
+		for (int i = 0; numUVs > i; ++i)
 		{
-			auto uvBuffer = mesh->mVertexBufferHandles[stream_element->mStream].GetData();
+			auto* fbxUV = fbxUVs[i];
 
-			for (u32 v = 0; uvBuffer->mNumElements > v; ++v)
+			if (auto stream_element = core::GetVertexStreamElement(vertexStreamDesc, static_cast<Illusion::VertexStreamElementUsage>(Illusion::VERTEX_ELEMENT_TEXCOORD0 + i)))
 			{
-				auto data = core::GetVertexStreamData(vertexStreamDesc, stream_element, uvBuffer, v);
-				fbxsdk::FbxVector2 uv = { 0.0, 1.0 };
+				auto uvBuffer = mesh->mVertexBufferHandles[stream_element->mStream].GetData();
 
-				for (int i = 0; 2 > i; ++i)
+				for (u32 v = 0; uvBuffer->mNumElements > v; ++v)
 				{
-					switch (stream_element->mType)
+					auto data = core::GetVertexStreamData(vertexStreamDesc, stream_element, uvBuffer, v);
+					fbxsdk::FbxVector2 uv = { 0.0, 1.0 };
+
+					for (int i = 0; 2 > i; ++i)
 					{
-					case Illusion::VERTEX_TYPE_HALF2:
-						uv[i] = static_cast<double>(static_cast<qHalfFloat*>(data)[i].Get()); break;
+						switch (stream_element->mType)
+						{
+						case Illusion::VERTEX_TYPE_HALF2:
+							uv[i] = static_cast<double>(static_cast<qHalfFloat*>(data)[i].Get()); break;
+						}
 					}
+
+					uv[1] = 1.0 - uv[1];
+
+					fbxUV->GetDirectArray().Add(uv);
 				}
-
-				uv[1] = 1.0 - uv[1];
-
-				fbxUV->GetDirectArray().Add(uv);
 			}
 		}
+
+		
 
 		// Polygons
 
@@ -263,7 +287,10 @@ void ExportModel(const char* output_path, fbxsdk::FbxManager* mgr, Illusion::Mod
 					memcpy(&index, indices, indexBuffer->mElementByteSize);
 
 					fbxMesh->AddPolygon(index);
-					fbxUV->GetIndexArray().Add(index);
+
+					for (int i = 0; numUVs > i; ++i) {
+						fbxUVs[i]->GetIndexArray().Add(index);
+					}
 
 					indices = &indices[indexBuffer->mElementByteSize];
 				}
